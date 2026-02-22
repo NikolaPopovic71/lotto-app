@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Lotto Draw Generator</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=Crimson+Pro:ital,wght@0,300;0,400;1,300&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0a0a0f;
+      --surface:   #12121c;
+      --border:    #2a2a40;
+      --gold:      #c9a84c;
+      --gold-dim:  #7a5f24;
+      --red:       #b03a2e;
+      --text:      #e8e4d8;
+      --muted:     #7a7870;
+      --ball-bg:   #1e1e2e;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── Noise texture overlay ── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none; z-index: 0; opacity: 0.6;
+    }
+
+    /* ── Layout ── */
+    .wrapper {
+      position: relative; z-index: 1;
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 48px 24px 80px;
+    }
+
+    /* ── Header ── */
+    header {
+      text-align: center;
+      margin-bottom: 56px;
+    }
+    .eyebrow {
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 12px;
+    }
+    header h1 {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(52px, 10vw, 96px);
+      line-height: 0.9;
+      letter-spacing: 0.04em;
+      color: var(--text);
+      text-shadow: 0 0 60px rgba(201,168,76,0.15);
+    }
+    header h1 span { color: var(--gold); }
+    .subtitle {
+      font-family: 'Crimson Pro', serif;
+      font-style: italic;
+      font-size: 18px;
+      color: var(--muted);
+      margin-top: 16px;
+      line-height: 1.5;
+    }
+
+    /* ── Divider ── */
+    .divider {
+      display: flex; align-items: center; gap: 16px;
+      margin: 0 0 40px;
+    }
+    .divider span { font-size: 10px; letter-spacing: 0.25em; color: var(--gold-dim); white-space: nowrap; }
+    .divider::before, .divider::after {
+      content: ''; flex: 1; height: 1px; background: var(--border);
+    }
+
+    /* ── Combination entry ── */
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 32px;
+      margin-bottom: 24px;
+    }
+    .panel-title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 22px;
+      letter-spacing: 0.08em;
+      color: var(--gold);
+      margin-bottom: 8px;
+    }
+    .panel-hint {
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.05em;
+      margin-bottom: 24px;
+    }
+
+    /* Row = one combination */
+    #combinations-list { display: flex; flex-direction: column; gap: 10px; }
+
+    .combo-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      animation: slideIn 0.2s ease;
+    }
+    @keyframes slideIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+
+    .combo-index {
+      font-size: 10px;
+      color: var(--gold-dim);
+      width: 28px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    .num-inputs {
+      display: flex;
+      gap: 6px;
+      flex: 1;
+      flex-wrap: wrap;
+    }
+
+    .num-input {
+      width: 46px;
+      height: 46px;
+      background: var(--ball-bg);
+      border: 1px solid var(--border);
+      border-radius: 50%;
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      font-size: 14px;
+      font-weight: 500;
+      text-align: center;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+      -moz-appearance: textfield;
+    }
+    .num-input::-webkit-inner-spin-button,
+    .num-input::-webkit-outer-spin-button { -webkit-appearance: none; }
+    .num-input:focus {
+      border-color: var(--gold);
+      box-shadow: 0 0 0 2px rgba(201,168,76,0.15);
+      background: #1a1a2a;
+    }
+    .num-input.valid   { border-color: #3a6b3a; color: #7fcc7f; }
+    .num-input.invalid { border-color: var(--red); color: #e06060; }
+
+    .btn-remove {
+      background: none; border: none; cursor: pointer;
+      color: var(--muted); font-size: 18px; line-height: 1;
+      width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+      border-radius: 3px; transition: color 0.15s, background 0.15s;
+    }
+    .btn-remove:hover { color: var(--red); background: rgba(176,58,46,0.12); }
+
+    /* ── Add / Action buttons ── */
+    .actions { display: flex; gap: 12px; margin-top: 20px; flex-wrap: wrap; }
+
+    .btn {
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      border: none; cursor: pointer;
+      padding: 12px 24px;
+      border-radius: 3px;
+      transition: all 0.15s;
+    }
+    .btn-secondary {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+    .btn-secondary:hover { border-color: var(--gold-dim); color: var(--gold); }
+
+    .btn-primary {
+      background: var(--gold);
+      color: #0a0a0f;
+      font-weight: 500;
+      padding: 14px 36px;
+      font-size: 13px;
+    }
+    .btn-primary:hover { background: #dbb95a; transform: translateY(-1px); box-shadow: 0 4px 20px rgba(201,168,76,0.3); }
+    .btn-primary:active { transform: none; }
+    .btn-primary:disabled { background: var(--gold-dim); cursor: not-allowed; transform: none; box-shadow: none; }
+
+    .btn-danger {
+      background: transparent;
+      border: 1px solid rgba(176,58,46,0.4);
+      color: var(--red);
+    }
+    .btn-danger:hover { background: rgba(176,58,46,0.1); border-color: var(--red); }
+
+    .counter {
+      margin-left: auto;
+      font-size: 11px; color: var(--muted);
+      align-self: center;
+    }
+
+    /* ── Draw section ── */
+    .draw-section { margin-top: 36px; }
+
+    #draw-btn {
+      width: 100%; font-size: 16px; padding: 20px;
+      letter-spacing: 0.2em;
+    }
+
+    /* ── Result ── */
+    #result { margin-top: 32px; }
+
+    .result-card {
+      background: var(--surface);
+      border: 1px solid var(--gold-dim);
+      border-radius: 4px;
+      padding: 36px 32px;
+      text-align: center;
+      animation: fadeUp 0.4s ease;
+    }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+    .result-label {
+      font-size: 10px; letter-spacing: 0.3em; color: var(--gold);
+      text-transform: uppercase; margin-bottom: 24px;
+    }
+
+    .balls {
+      display: flex; justify-content: center; flex-wrap: wrap; gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .ball {
+      width: 60px; height: 60px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #2e2e44, #0e0e1a);
+      border: 2px solid var(--gold);
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 24px;
+      color: var(--gold);
+      box-shadow: 0 0 20px rgba(201,168,76,0.2), inset 0 1px 0 rgba(255,255,255,0.05);
+      animation: popIn 0.4s cubic-bezier(0.34,1.56,0.64,1) both;
+    }
+    .ball:nth-child(1) { animation-delay: 0.05s; }
+    .ball:nth-child(2) { animation-delay: 0.12s; }
+    .ball:nth-child(3) { animation-delay: 0.19s; }
+    .ball:nth-child(4) { animation-delay: 0.26s; }
+    .ball:nth-child(5) { animation-delay: 0.33s; }
+    .ball:nth-child(6) { animation-delay: 0.40s; }
+    .ball:nth-child(7) { animation-delay: 0.47s; }
+    @keyframes popIn { from { opacity: 0; transform: scale(0.4); } to { opacity: 1; transform: scale(1); } }
+
+    .result-msg {
+      font-family: 'Crimson Pro', serif;
+      font-style: italic;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .error-card {
+      background: rgba(176,58,46,0.08);
+      border: 1px solid rgba(176,58,46,0.4);
+      border-radius: 4px;
+      padding: 20px 24px;
+      color: #e07070;
+      font-size: 13px;
+      animation: fadeUp 0.3s ease;
+    }
+
+    /* ── Spinner ── */
+    .spinner {
+      display: inline-block; width: 18px; height: 18px;
+      border: 2px solid rgba(10,10,15,0.3);
+      border-top-color: #0a0a0f;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      vertical-align: middle; margin-right: 8px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Footer ── */
+    footer {
+      text-align: center; margin-top: 64px;
+      font-size: 11px; color: var(--muted);
+      letter-spacing: 0.1em;
+    }
+
+    /* ── Hit Report ── */
+    .report-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 32px;
+      margin-top: 20px;
+      animation: fadeUp 0.5s ease 0.3s both;
+    }
+    .report-title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 20px; letter-spacing: 0.08em; color: var(--gold);
+      margin-bottom: 6px;
+    }
+    .report-subtitle {
+      font-size: 11px; color: var(--muted); letter-spacing: 0.05em; margin-bottom: 24px;
+    }
+    .hit-summary {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 28px;
+    }
+    .hit-stat {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 20px 16px;
+      text-align: center;
+    }
+    .hit-stat-number {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 48px; line-height: 1;
+      color: var(--text);
+    }
+    .hit-stat-number.has-hits { color: var(--gold); }
+    .hit-stat-label {
+      font-size: 10px; letter-spacing: 0.2em; color: var(--muted);
+      text-transform: uppercase; margin-top: 6px;
+    }
+    .hit-stat-badge {
+      display: inline-block;
+      font-size: 9px; letter-spacing: 0.1em;
+      background: var(--gold-dim); color: var(--gold);
+      padding: 2px 8px; border-radius: 2px; margin-bottom: 8px;
+    }
+    .hit-stat-badge.six { background: rgba(201,168,76,0.3); }
+    .hit-stat-badge.five { background: rgba(201,168,76,0.2); }
+    .hit-stat-badge.four { background: rgba(201,168,76,0.1); }
+
+    .details-header {
+      font-size: 10px; letter-spacing: 0.25em; color: var(--gold-dim);
+      text-transform: uppercase; margin-bottom: 12px;
+      padding-bottom: 8px; border-bottom: 1px solid var(--border);
+    }
+    .no-hits-msg {
+      font-family: 'Crimson Pro', serif; font-style: italic;
+      color: var(--muted); font-size: 15px; text-align: center; padding: 16px 0;
+    }
+    .detail-row {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 0; border-bottom: 1px solid rgba(42,42,64,0.5);
+      flex-wrap: wrap;
+      animation: slideIn 0.25s ease both;
+    }
+    .detail-idx {
+      font-size: 10px; color: var(--gold-dim); width: 28px; text-align: right; flex-shrink: 0;
+    }
+    .detail-combo {
+      display: flex; gap: 5px; flex-wrap: wrap; flex: 1;
+    }
+    .mini-ball {
+      width: 32px; height: 32px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 500;
+      border: 1px solid var(--border);
+      background: var(--ball-bg); color: var(--muted);
+    }
+    .mini-ball.hit {
+      background: rgba(201,168,76,0.12);
+      border-color: var(--gold-dim);
+      color: var(--gold);
+    }
+    .detail-hits-badge {
+      font-family: 'Bebas Neue', sans-serif; font-size: 18px;
+      color: var(--gold); width: 36px; text-align: center; flex-shrink: 0;
+    }
+
+    @media (max-width: 520px) {
+      .panel { padding: 20px 16px; }
+      .num-input { width: 40px; height: 40px; font-size: 13px; }
+      .ball { width: 50px; height: 50px; font-size: 20px; }
+      .hit-summary { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+      .hit-stat-number { font-size: 36px; }
+      .report-card { padding: 20px 16px; }
+    }
+  </style>
+</head>
+<body>
+<div class="wrapper">
+
+  <header>
+    <p class="eyebrow">Guaranteed Non-Matching</p>
+    <h1>LOTTO<br/><span>DRAW</span></h1>
+    <p class="subtitle">Enter up to {{ max_combinations }} combinations of {{ numbers_per_combination }} numbers ({{ lotto_min }}–{{ lotto_max }}).<br/>
+    The generated draw will <em>never</em> match any of your submissions.</p>
+  </header>
+
+  <div class="divider"><span>YOUR COMBINATIONS</span></div>
+
+  <div class="panel">
+    <p class="panel-title">Enter Your Tickets</p>
+    <p class="panel-hint">Each row = one combination &nbsp;·&nbsp; {{ numbers_per_combination }} unique numbers, {{ lotto_min }}–{{ lotto_max }} &nbsp;·&nbsp; Max {{ max_combinations }} rows</p>
+
+    <div id="combinations-list"></div>
+
+    <div class="actions">
+      <button class="btn btn-secondary" onclick="addRow()">+ Add Combination</button>
+      <button class="btn btn-danger" onclick="clearAll()">Clear All</button>
+      <span class="counter"><span id="count">0</span> / {{ max_combinations }}</span>
+    </div>
+  </div>
+
+  <div class="draw-section">
+    <button id="draw-btn" class="btn btn-primary" onclick="submitDraw()">
+      GENERATE DRAW
+    </button>
+  </div>
+
+  <div id="result"></div>
+
+  <footer>LOTTO DRAW GENERATOR &nbsp;·&nbsp; Numbers {{ lotto_min }}–{{ lotto_max }} &nbsp;·&nbsp; 7 of 36</footer>
+</div>
+
+<script>
+  const MAX = {{ max_combinations }};
+  const MIN_NUM = {{ lotto_min }};
+  const MAX_NUM = {{ lotto_max }};
+  const PER_COMBO = {{ numbers_per_combination }};
+  let rowCount = 0;
+
+  function addRow(values = []) {
+    if (rowCount >= MAX) return;
+    rowCount++;
+    updateCounter();
+
+    const list = document.getElementById('combinations-list');
+    const row = document.createElement('div');
+    row.className = 'combo-row';
+    row.dataset.id = rowCount;
+
+    const idx = document.createElement('span');
+    idx.className = 'combo-index';
+    idx.textContent = String(rowCount).padStart(2, '0');
+
+    const inputs = document.createElement('div');
+    inputs.className = 'num-inputs';
+    for (let i = 0; i < PER_COMBO; i++) {
+      const inp = document.createElement('input');
+      inp.type = 'number';
+      inp.className = 'num-input';
+      inp.min = MIN_NUM;
+      inp.max = MAX_NUM;
+      inp.placeholder = '--';
+      if (values[i] !== undefined) inp.value = values[i];
+      inp.addEventListener('input', () => validateInput(inp, row));
+      inp.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          const next = inp.nextElementSibling;
+          if (next) next.focus();
+          else if (rowCount < MAX) { addRow(); setTimeout(() => list.lastChild.querySelector('.num-input').focus(), 50); }
+        }
+      });
+      inputs.appendChild(inp);
+    }
+
+    const rm = document.createElement('button');
+    rm.className = 'btn-remove';
+    rm.title = 'Remove';
+    rm.innerHTML = '&times;';
+    rm.onclick = () => { row.remove(); renumberRows(); updateCounter(); };
+
+    row.appendChild(idx);
+    row.appendChild(inputs);
+    row.appendChild(rm);
+    list.appendChild(row);
+
+    setTimeout(() => inputs.querySelector('.num-input').focus(), 30);
+  }
+
+  function validateInput(inp, row) {
+    const v = parseInt(inp.value);
+    if (!inp.value) { inp.classList.remove('valid','invalid'); return; }
+    const allInRow = Array.from(row.querySelectorAll('.num-input')).map(i => i.value);
+    const dup = allInRow.filter(x => x === inp.value).length > 1;
+    if (isNaN(v) || v < MIN_NUM || v > MAX_NUM || dup) {
+      inp.classList.add('invalid'); inp.classList.remove('valid');
+    } else {
+      inp.classList.add('valid'); inp.classList.remove('invalid');
+    }
+  }
+
+  function renumberRows() {
+    rowCount = 0;
+    document.querySelectorAll('.combo-row').forEach(r => {
+      rowCount++;
+      r.querySelector('.combo-index').textContent = String(rowCount).padStart(2, '0');
+    });
+  }
+
+  function updateCounter() {
+    document.getElementById('count').textContent = document.querySelectorAll('.combo-row').length;
+  }
+
+  function clearAll() {
+    document.getElementById('combinations-list').innerHTML = '';
+    rowCount = 0;
+    updateCounter();
+    document.getElementById('result').innerHTML = '';
+  }
+
+  function collectCombinations() {
+    const combos = [];
+    let hasError = false;
+    document.querySelectorAll('.combo-row').forEach((row, ri) => {
+      const inputs = row.querySelectorAll('.num-input');
+      const nums = [];
+      inputs.forEach(inp => {
+        if (inp.value !== '') nums.push(parseInt(inp.value));
+      });
+      if (nums.length > 0) combos.push(nums);
+    });
+    return combos;
+  }
+
+  async function submitDraw() {
+    const btn = document.getElementById('draw-btn');
+    const resultDiv = document.getElementById('result');
+    const combos = collectCombinations();
+
+    if (combos.length === 0) {
+      resultDiv.innerHTML = `<div class="error-card">Please enter at least one combination.</div>`;
+      return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spinner"></span> DRAWING...`;
+    resultDiv.innerHTML = '';
+
+    try {
+      const res = await fetch('/draw', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ combinations: combos })
+      });
+      const data = await res.json();
+
+      if (!res.ok || data.error) {
+        resultDiv.innerHTML = `<div class="error-card">⚠ ${data.error}</div>`;
+      } else {
+        const balls = data.draw.map(n => `<div class="ball">${n}</div>`).join('');
+        const r = data.hit_report;
+
+        // Build detail rows for 4+ hit combos
+        let detailsHtml = '';
+        if (r.details.length === 0) {
+          detailsHtml = `<p class="no-hits-msg">No combinations matched 4 or more numbers — you're safe.</p>`;
+        } else {
+          detailsHtml = r.details.map((d, i) => {
+            const hitSet = new Set(d.hit_numbers);
+            const miniBalls = d.combination.map(n =>
+              `<div class="mini-ball ${hitSet.has(n) ? 'hit' : ''}">${n}</div>`
+            ).join('');
+            return `<div class="detail-row" style="animation-delay:${i * 0.06}s">
+              <span class="detail-idx">${String(d.index).padStart(2,'0')}</span>
+              <div class="detail-combo">${miniBalls}</div>
+              <span class="detail-hits-badge">${d.hits}✕</span>
+            </div>`;
+          }).join('');
+        }
+
+        resultDiv.innerHTML = `
+          <div class="result-card">
+            <p class="result-label">Generated Draw — Does Not Match Your Tickets</p>
+            <div class="balls">${balls}</div>
+            <p class="result-msg">${data.message}</p>
+          </div>
+          <div class="report-card">
+            <p class="report-title">Hit Report</p>
+            <p class="report-subtitle">How many numbers from each of your combinations appeared in the draw</p>
+            <div class="hit-summary">
+              <div class="hit-stat">
+                <div class="hit-stat-badge six">6 HITS</div>
+                <div class="hit-stat-number ${r.six_hits > 0 ? 'has-hits' : ''}">${r.six_hits}</div>
+                <div class="hit-stat-label">combination${r.six_hits !== 1 ? 's' : ''}</div>
+              </div>
+              <div class="hit-stat">
+                <div class="hit-stat-badge five">5 HITS</div>
+                <div class="hit-stat-number ${r.five_hits > 0 ? 'has-hits' : ''}">${r.five_hits}</div>
+                <div class="hit-stat-label">combination${r.five_hits !== 1 ? 's' : ''}</div>
+              </div>
+              <div class="hit-stat">
+                <div class="hit-stat-badge four">4 HITS</div>
+                <div class="hit-stat-number ${r.four_hits > 0 ? 'has-hits' : ''}">${r.four_hits}</div>
+                <div class="hit-stat-label">combination${r.four_hits !== 1 ? 's' : ''}</div>
+              </div>
+            </div>
+            ${r.details.length > 0 ? `<p class="details-header">Combinations with 4 or more hits</p>` : ''}
+            ${detailsHtml}
+          </div>`;
+      }
+    } catch (err) {
+      resultDiv.innerHTML = `<div class="error-card">⚠ Network error. Is the Flask server running?</div>`;
+    }
+
+    btn.disabled = false;
+    btn.innerHTML = 'GENERATE DRAW';
+  }
+
+  // Start with 3 default rows
+  addRow(); addRow(); addRow();
+</script>
+</body>
+</html>
